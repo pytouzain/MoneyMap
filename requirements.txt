@@ -1,6 +1,9 @@
-fastapi==0.115.0
-uvicorn[standard]==0.30.6
-python-multipart==0.0.9
-pdfplumber==0.11.4
-anthropic==0.39.0
-pydantic==2.9.2
+# Version floors (not exact pins) so pip installs recent releases that ship
+# prebuilt wheels for your Python version. This avoids compiling pydantic-core
+# from Rust source on Windows (which would require the MSVC C++ build tools).
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+pdfplumber>=0.11
+anthropic>=0.39
+pydantic>=2.9
