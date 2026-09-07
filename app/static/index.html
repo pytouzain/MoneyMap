@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MoneyMap</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>🗺️ MoneyMap</h1>
+      <p class="tagline">Drop a bank or credit-card statement, see where your money goes.</p>
+    </header>
+
+    <main>
+      <section id="upload-card" class="card">
+        <form id="upload-form">
+          <label for="file-input" id="dropzone" class="dropzone">
+            <span class="dropzone-icon">📄</span>
+            <span class="dropzone-text">Click to choose a PDF statement</span>
+            <span class="dropzone-hint">or drag &amp; drop it here · text-based PDFs only</span>
+            <input id="file-input" type="file" accept="application/pdf,.pdf" hidden />
+          </label>
+          <div id="file-name" class="file-name" hidden></div>
+          <button type="submit" id="analyze-btn" class="btn" disabled>Analyze statement</button>
+        </form>
+        <p class="privacy-note">
+          Your PDF is processed in memory and never stored. Only anonymized
+          merchant names of hard-to-classify lines are sent to the categorizer.
+        </p>
+      </section>
+
+      <section id="status" class="status" hidden></section>
+
+      <section id="results" hidden>
+        <div class="totals">
+          <div class="stat">
+            <div class="stat-label">Total spending</div>
+            <div class="stat-value" id="total-spending">—</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Total credits</div>
+            <div class="stat-value" id="total-credits">—</div>
+          </div>
+          <div class="stat">
+            <div class="stat-label">Transactions</div>
+            <div class="stat-value" id="total-count">—</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Spending by category</h2>
+          <div id="chart" class="chart"></div>
+        </div>
+
+        <div class="card">
+          <div class="table-head">
+            <h2>Transactions</h2>
+            <span class="hint">Edit a category to correct it.</span>
+          </div>
+          <div class="table-wrap">
+            <table id="txn-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Description</th>
+                  <th class="num">Amount</th>
+                  <th>Category</th>
+                  <th>Source</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

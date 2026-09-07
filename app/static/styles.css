@@ -1,0 +1,160 @@
+:root {
+  --bg: #0f1419;
+  --surface: #1a2029;
+  --surface-2: #232b36;
+  --border: #2e3946;
+  --text: #e6edf3;
+  --muted: #9aa7b4;
+  --accent: #4f9dff;
+  --accent-2: #34d399;
+  --danger: #f87171;
+  --radius: 12px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.topbar {
+  padding: 32px 24px 8px;
+  text-align: center;
+}
+.topbar h1 { margin: 0; font-size: 2rem; }
+.tagline { color: var(--muted); margin: 4px 0 0; }
+
+main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+.card h2 { margin: 0 0 12px; font-size: 1.1rem; }
+
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 36px 20px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  text-align: center;
+}
+.dropzone:hover, .dropzone.dragover {
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+.dropzone-icon { font-size: 2rem; }
+.dropzone-text { font-weight: 600; }
+.dropzone-hint { color: var(--muted); font-size: .85rem; }
+
+.file-name {
+  margin-top: 12px;
+  color: var(--accent-2);
+  font-size: .9rem;
+}
+
+.btn {
+  margin-top: 16px;
+  width: 100%;
+  padding: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn:not(:disabled):hover { opacity: .9; }
+
+.privacy-note {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: .8rem;
+}
+
+.status {
+  padding: 14px 18px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+.status.error { border-color: var(--danger); color: var(--danger); }
+.status.loading { color: var(--muted); }
+
+.totals {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  text-align: center;
+}
+.stat-label { color: var(--muted); font-size: .8rem; }
+.stat-value { font-size: 1.5rem; font-weight: 700; margin-top: 4px; }
+
+.chart { display: flex; flex-direction: column; gap: 10px; }
+.bar-row { display: grid; grid-template-columns: 130px 1fr auto; align-items: center; gap: 10px; }
+.bar-label { color: var(--muted); font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-track { background: var(--surface-2); border-radius: 6px; height: 20px; overflow: hidden; }
+.bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 6px; }
+.bar-value { font-variant-numeric: tabular-nums; font-size: .85rem; min-width: 72px; text-align: right; }
+
+.table-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.hint { color: var(--muted); font-size: .8rem; }
+
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.credit { color: var(--accent-2); }
+tbody tr:hover { background: var(--surface-2); }
+
+select.cat-select {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 6px;
+}
+
+.badge {
+  font-size: .72rem;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+.badge.rule { color: var(--accent); }
+.badge.llm { color: var(--accent-2); }
+.badge.user { color: #fbbf24; }
+
+@media (max-width: 560px) {
+  .totals { grid-template-columns: 1fr; }
+  .bar-row { grid-template-columns: 100px 1fr auto; }
+}
