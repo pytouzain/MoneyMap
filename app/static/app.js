@@ -17,9 +17,23 @@ const els = {
   totalSpending: document.getElementById("total-spending"),
   totalCredits: document.getElementById("total-credits"),
   totalCount: document.getElementById("total-count"),
-  chart: document.getElementById("chart"),
+  topCategory: document.getElementById("top-category"),
+  topCategoryAmount: document.getElementById("top-category-amount"),
+  donut: document.getElementById("donut"),
+  donutTotal: document.getElementById("donut-total"),
+  legend: document.getElementById("legend"),
+  tooltip: document.getElementById("chart-tooltip"),
   tableBody: document.querySelector("#txn-table tbody"),
 };
+
+// Validated categorical palette (dark-surface hues), dataviz skill reference
+// instance. Assigned by spend rank; a 9th+ category folds into OTHER_COLOR.
+const PALETTE = [
+  "#3987e5", "#d95926", "#199e70", "#c98500",
+  "#d55181", "#008300", "#9085e9", "#e66767",
+];
+const OTHER_COLOR = "#898781";
+const SVG_NS = "http://www.w3.org/2000/svg";
 
 let transactions = [];
 
@@ -106,32 +120,181 @@ function render(data) {
     els.status.hidden = true;
   }
 
-  els.totalSpending.textContent = money(data.total_spending);
-  els.totalCredits.textContent = money(data.total_credits);
-  els.totalCount.textContent = String(transactions.length);
-
-  renderChart(data.summary);
+  renderDashboard();
   renderTable();
   els.results.hidden = false;
 }
 
-function renderChart(summary) {
-  els.chart.innerHTML = "";
-  if (!summary.length) {
-    els.chart.innerHTML = '<p class="hint">No spending to chart.</p>';
+// Aggregate transactions into ranked, colored spending rows + totals.
+function computeSummary() {
+  const totals = {};
+  const counts = {};
+  let totalSpending = 0;
+  let totalCredits = 0;
+  for (const t of transactions) {
+    if (t.amount >= 0) {
+      totals[t.category] = (totals[t.category] || 0) + t.amount;
+      counts[t.category] = (counts[t.category] || 0) + 1;
+      totalSpending += t.amount;
+    } else {
+      totalCredits += -t.amount;
+    }
+  }
+
+  let rows = Object.keys(totals)
+    .map((category) => ({
+      category,
+      total: Math.round(totals[category] * 100) / 100,
+      count: counts[category],
+    }))
+    .filter((r) => r.total > 0)
+    .sort((a, b) => b.total - a.total);
+
+  // Fold everything past the palette size into a single neutral slice.
+  if (rows.length > PALETTE.length) {
+    const head = rows.slice(0, PALETTE.length - 1);
+    const tail = rows.slice(PALETTE.length - 1);
+    head.push({
+      category: "Other categories",
+      total: Math.round(tail.reduce((s, r) => s + r.total, 0) * 100) / 100,
+      count: tail.reduce((s, r) => s + r.count, 0),
+      isFolded: true,
+    });
+    rows = head;
+  }
+
+  rows.forEach((r, i) => {
+    r.color = r.isFolded ? OTHER_COLOR : PALETTE[i];
+    r.pct = totalSpending > 0 ? (r.total / totalSpending) * 100 : 0;
+  });
+
+  return {
+    rows,
+    totalSpending: Math.round(totalSpending * 100) / 100,
+    totalCredits: Math.round(totalCredits * 100) / 100,
+  };
+}
+
+function renderDashboard() {
+  const { rows, totalSpending, totalCredits } = computeSummary();
+
+  els.totalSpending.textContent = money(totalSpending);
+  els.totalCredits.textContent = totalCredits > 0 ? `+${money(totalCredits)}` : money(0);
+  els.totalCount.textContent = String(transactions.length);
+  els.donutTotal.textContent = money(totalSpending);
+
+  if (rows.length) {
+    els.topCategory.textContent = rows[0].category;
+    els.topCategoryAmount.textContent = `${money(rows[0].total)} · ${rows[0].pct.toFixed(0)}%`;
+  } else {
+    els.topCategory.textContent = "—";
+    els.topCategoryAmount.textContent = "";
+  }
+
+  renderDonut(rows, totalSpending);
+  renderLegend(rows);
+}
+
+function renderDonut(rows, totalSpending) {
+  els.donut.innerHTML = "";
+  if (!rows.length || totalSpending <= 0) return;
+
+  const r = 45;
+  const cx = 60;
+  const cy = 60;
+  const circumference = 2 * Math.PI * r;
+  const gap = rows.length > 1 ? 2 : 0; // surface gap between segments (viewBox units)
+  let offset = 0;
+
+  rows.forEach((row) => {
+    const frac = row.total / totalSpending;
+    const seg = Math.max(frac * circumference - gap, 0.5);
+    const circle = document.createElementNS(SVG_NS, "circle");
+    circle.setAttribute("cx", cx);
+    circle.setAttribute("cy", cy);
+    circle.setAttribute("r", r);
+    circle.setAttribute("fill", "none");
+    circle.setAttribute("stroke", row.color);
+    circle.setAttribute("stroke-width", "16");
+    circle.setAttribute("stroke-dasharray", `${seg} ${circumference - seg}`);
+    circle.setAttribute("stroke-dashoffset", `${-offset}`);
+    circle.dataset.category = row.category;
+
+    circle.addEventListener("mouseenter", (e) => {
+      dimSiblings(circle, true);
+      showTooltip(e, row);
+    });
+    circle.addEventListener("mousemove", (e) => moveTooltip(e));
+    circle.addEventListener("mouseleave", () => {
+      dimSiblings(circle, false);
+      hideTooltip();
+    });
+
+    els.donut.appendChild(circle);
+    offset += frac * circumference;
+  });
+}
+
+function renderLegend(rows) {
+  els.legend.innerHTML = "";
+  if (!rows.length) {
+    els.legend.innerHTML = '<p class="hint">No spending to summarize.</p>';
     return;
   }
-  const max = Math.max(...summary.map((s) => s.total));
-  for (const s of summary) {
-    const row = document.createElement("div");
-    row.className = "bar-row";
-    const pct = max > 0 ? (s.total / max) * 100 : 0;
-    row.innerHTML = `
-      <div class="bar-label" title="${escapeHtml(s.category)}">${escapeHtml(s.category)}</div>
-      <div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>
-      <div class="bar-value">${money(s.total)}</div>`;
-    els.chart.appendChild(row);
-  }
+  rows.forEach((row) => {
+    const el = document.createElement("div");
+    el.className = "legend-row";
+    el.innerHTML = `
+      <span class="legend-swatch" style="background:${row.color}"></span>
+      <span class="legend-name" title="${escapeHtml(row.category)}">${escapeHtml(row.category)}
+        <span class="legend-count">· ${row.count}</span></span>
+      <span class="legend-pct">${row.pct.toFixed(1)}%</span>
+      <span class="legend-amt">${money(row.total)}</span>`;
+    el.addEventListener("mouseenter", (e) => {
+      const circle = els.donut.querySelector(`circle[data-category="${cssEscape(row.category)}"]`);
+      if (circle) dimSiblings(circle, true);
+      showTooltip(e, row);
+    });
+    el.addEventListener("mousemove", (e) => moveTooltip(e));
+    el.addEventListener("mouseleave", () => {
+      undimAll();
+      hideTooltip();
+    });
+    els.legend.appendChild(el);
+  });
+}
+
+// --- donut hover helpers ----------------------------------------------------
+function dimSiblings(active, on) {
+  els.donut.querySelectorAll("circle").forEach((c) => {
+    c.classList.toggle("dim", on && c !== active);
+  });
+}
+function undimAll() {
+  els.donut.querySelectorAll("circle").forEach((c) => c.classList.remove("dim"));
+}
+function showTooltip(e, row) {
+  els.tooltip.innerHTML =
+    `<div class="tt-cat">${escapeHtml(row.category)}</div>` +
+    `<div class="tt-sub">${money(row.total)} · ${row.pct.toFixed(1)}% · ${row.count} txn</div>`;
+  els.tooltip.hidden = false;
+  moveTooltip(e);
+}
+function moveTooltip(e) {
+  const pad = 14;
+  let x = e.clientX + pad;
+  let y = e.clientY + pad;
+  const rect = els.tooltip.getBoundingClientRect();
+  if (x + rect.width > window.innerWidth) x = e.clientX - rect.width - pad;
+  if (y + rect.height > window.innerHeight) y = e.clientY - rect.height - pad;
+  els.tooltip.style.left = `${x}px`;
+  els.tooltip.style.top = `${y}px`;
+}
+function hideTooltip() {
+  els.tooltip.hidden = true;
+}
+function cssEscape(s) {
+  return s.replace(/"/g, '\\"');
 }
 
 function renderTable() {
@@ -182,25 +345,7 @@ function buildCategorySelect(txn, index) {
 }
 
 function recomputeAndRerender() {
-  const totals = {};
-  let totalSpending = 0;
-  let totalCredits = 0;
-  for (const t of transactions) {
-    if (t.amount >= 0) {
-      totals[t.category] = (totals[t.category] || 0) + t.amount;
-      totalSpending += t.amount;
-    } else {
-      totalCredits += -t.amount;
-    }
-  }
-  const summary = Object.entries(totals)
-    .map(([category, total]) => ({ category, total: Math.round(total * 100) / 100 }))
-    .filter((s) => s.total > 0)
-    .sort((a, b) => b.total - a.total);
-
-  els.totalSpending.textContent = money(Math.round(totalSpending * 100) / 100);
-  els.totalCredits.textContent = money(Math.round(totalCredits * 100) / 100);
-  renderChart(summary);
+  renderDashboard();
   renderTable();
 }
 

@@ -34,23 +34,38 @@
 
       <section id="results" hidden>
         <div class="totals">
-          <div class="stat">
+          <div class="stat stat-hero">
             <div class="stat-label">Total spending</div>
             <div class="stat-value" id="total-spending">—</div>
           </div>
           <div class="stat">
-            <div class="stat-label">Total credits</div>
-            <div class="stat-value" id="total-credits">—</div>
+            <div class="stat-label">Payments &amp; credits</div>
+            <div class="stat-value credit" id="total-credits">—</div>
           </div>
           <div class="stat">
             <div class="stat-label">Transactions</div>
             <div class="stat-value" id="total-count">—</div>
           </div>
+          <div class="stat">
+            <div class="stat-label">Top category</div>
+            <div class="stat-value" id="top-category">—</div>
+            <div class="stat-sub" id="top-category-amount"></div>
+          </div>
         </div>
 
         <div class="card">
           <h2>Spending by category</h2>
-          <div id="chart" class="chart"></div>
+          <div class="breakdown">
+            <div class="donut-wrap">
+              <svg id="donut" viewBox="0 0 120 120" role="img" aria-label="Spending by category"></svg>
+              <div class="donut-center">
+                <div class="donut-center-label">Total</div>
+                <div class="donut-center-value" id="donut-total">—</div>
+              </div>
+            </div>
+            <div id="legend" class="legend"></div>
+          </div>
+          <div id="chart-tooltip" class="chart-tooltip" hidden></div>
         </div>
 
         <div class="card">
