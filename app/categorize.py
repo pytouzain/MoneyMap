@@ -71,7 +71,10 @@ def _categorize_with_llm(descriptions: list[str]) -> dict[str, str] | None:
 
     prompt = (
         "You categorize bank/credit-card transaction descriptions into a "
-        "fixed set of spending categories.\n\n"
+        "fixed set of spending categories. Descriptions are merchant names "
+        "and may include a trailing city or country (e.g. international "
+        "merchants) — infer the category from the merchant, ignoring the "
+        "location. If a merchant is genuinely unclear, use \"Other\".\n\n"
         f"Allowed categories (use these exact strings): {', '.join(CATEGORIES)}\n\n"
         "Return ONLY a JSON object mapping each input description (verbatim) "
         "to exactly one category. No prose, no code fences.\n\n"

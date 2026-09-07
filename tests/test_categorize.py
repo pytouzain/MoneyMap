@@ -14,6 +14,18 @@ def test_rules_match_common_merchants():
 def test_longest_keyword_wins():
     # "uber eats" (Dining) should beat "uber" (Transport).
     assert categorize_by_rules("UBER EATS ORDER") == "Dining"
+    # "amazon prime" (Entertainment) should beat "amazon" (Shopping).
+    assert categorize_by_rules("AMAZON PRIME*563QX0OE1") == "Entertainment"
+
+
+def test_expanded_brand_rules():
+    assert categorize_by_rules("Paramount+ SAN FRANCISCO") == "Entertainment"
+    assert categorize_by_rules("PEACOCK NEW YORK CITY") == "Entertainment"
+    assert categorize_by_rules("SPECTRUM") == "Utilities"
+    assert categorize_by_rules("TRAINLINE Trainline LONDON") == "Transport"
+    assert categorize_by_rules("LEMONADE INSURANCE NEW YORK") == "Insurance"
+    assert categorize_by_rules("MOBILE PAYMENT - THANK YOU") == "Transfers"
+    assert categorize_by_rules("ENJOY SUSHI AIX EN PROVENCE") == "Dining"
 
 
 def test_categorize_falls_back_to_other_without_llm(monkeypatch):

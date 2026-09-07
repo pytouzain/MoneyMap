@@ -2,7 +2,7 @@
 
 const CATEGORIES = [
   "Groceries", "Dining", "Transport", "Shopping", "Entertainment",
-  "Utilities", "Housing", "Health", "Travel", "Income",
+  "Utilities", "Housing", "Health", "Insurance", "Travel", "Income",
   "Fees & Interest", "Transfers", "Other",
 ];
 
