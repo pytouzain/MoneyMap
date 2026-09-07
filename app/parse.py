@@ -64,18 +64,24 @@ _DATE_PATTERNS = [
     re.compile(rf"^(\d{{1,2}}\s+(?:{_MONTHS})\.?(?:\s+\d{{4}})?)\b", re.I),    # 31 Jan 2024
 ]
 
+# Decorative symbols some issuers append to an amount (e.g. Amex's "Pay Over
+# Time" lozenge "⧫", posting-date asterisks, bullets). Stripped from the end
+# of a line before the amount is matched.
+_TRAILING_DECORATION = "*⧫◆✦♦●•· \t"
+
 # --- amount pattern ----------------------------------------------------------
-# Matches the LAST money-looking token on a line. Handles $, thousands
-# separators, decimals, trailing/leading minus, parentheses for negatives,
-# and a trailing CR/DR marker.
+# Matches the LAST money-looking token on a line. Handles $/€/£, thousands
+# separators, decimals, a minus on either side of the currency symbol
+# (-$8.70 and $-8.70), parentheses for negatives, and a trailing CR/DR marker.
 _AMOUNT_RE = re.compile(
     r"""
     (?P<paren_open>\()?          # optional opening paren (negative)
-    \s*(?P<cur>[$€£])?\s*        # optional currency symbol
-    (?P<sign>-)?                 # optional leading minus
+    \s*(?P<sign1>-)?\s*          # optional minus BEFORE the currency symbol
+    (?P<cur>[$€£])?\s*           # optional currency symbol
+    (?P<sign2>-)?                # optional minus AFTER the currency symbol
     (?P<num>\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)
     (?P<paren_close>\))?         # optional closing paren
-    \s*(?P<marker>CR|DR|-)?      # optional credit/debit marker or trailing minus
+    \s*(?P<marker>CR|DR)?        # optional credit/debit marker
     \s*$
     """,
     re.VERBOSE | re.IGNORECASE,
@@ -91,34 +97,36 @@ def _find_date(line: str) -> tuple[str | None, str]:
     return None, line
 
 
-def _parse_amount(token_region: str) -> tuple[float, str, bool] | None:
+def _parse_amount(token_region: str) -> tuple[float, str] | None:
     """Parse a trailing amount from the given text.
 
-    Returns (amount, text_without_amount, has_cents) or None. Amount is
-    positive for spending (money out) and negative for credits/refunds.
-    has_cents indicates the amount had an explicit decimal part, which the
-    caller uses to reject non-transaction noise (e.g. "Page 1 of 3").
+    Returns (amount, text_without_amount) or None. Amount is positive for
+    spending (money out) and negative for credits/refunds.
     """
-    m = _AMOUNT_RE.search(token_region)
+    # Drop decorative trailing symbols (e.g. Amex's "⧫") so the amount is at
+    # the true end of the line where the regex can anchor to it.
+    region = token_region.rstrip(_TRAILING_DECORATION)
+
+    m = _AMOUNT_RE.search(region)
     if not m:
         return None
-    num_str = m.group("num")
-    num = float(num_str.replace(",", ""))
+    num = float(m.group("num").replace(",", ""))
     if num == 0:
         # A bare "0.00" is rarely a real transaction line on its own; skip.
         return None
 
-    has_cents = "." in num_str
+    marker = m.group("marker")
     is_negative = bool(
         m.group("paren_open")
         or m.group("paren_close")
-        or m.group("sign")
-        or (m.group("marker") and m.group("marker").upper() in {"-", "CR"})
+        or m.group("sign1")
+        or m.group("sign2")
+        or (marker and marker.upper() == "CR")
     )
     # Credit (CR) means money in -> negative spending. DR / plain -> positive.
     amount = -num if is_negative else num
-    remainder = token_region[: m.start()].rstrip()
-    return amount, remainder, has_cents
+    remainder = region[: m.start()].rstrip()
+    return amount, remainder
 
 
 def parse_transactions(text: str) -> list[Transaction]:
@@ -142,7 +150,7 @@ def parse_transactions(text: str) -> list[Transaction]:
         parsed = _parse_amount(rest)
         if parsed is None:
             continue
-        amount, description, _ = parsed
+        amount, description = parsed
 
         description = _clean_description(description)
         if not description:
@@ -163,11 +171,14 @@ def parse_transactions(text: str) -> list[Transaction]:
 
 
 def _clean_description(desc: str) -> str:
-    """Tidy a raw description: collapse whitespace, drop leading balance-ish
-    numeric noise that some statements put between description and amount."""
+    """Tidy a raw description: collapse whitespace and strip noise that some
+    statements leave around the merchant name."""
     desc = re.sub(r"\s+", " ", desc).strip()
-    # Some statements append a running balance after the amount; if a second
-    # money token leaked into the description tail, trim an obvious trailing
-    # balance figure.
-    desc = re.sub(r"\s+[$€£]?-?\d{1,3}(?:,\d{3})*(?:\.\d{2})?$", "", desc).strip()
+    # Leading posting-date asterisk / decoration (e.g. "07/16/26*  MERCHANT").
+    desc = re.sub(r"^[*⧫◆✦♦●•·\s]+", "", desc)
+    # Trailing foreign-currency amount that precedes the USD amount on
+    # international charges, e.g. "... AIX EN PROVENCE FR 7,60" (comma decimal).
+    desc = re.sub(r"\s+\d{1,3}(?:[.\s]\d{3})*,\d{2}$", "", desc).strip()
+    # A running-balance figure some statements append after the amount.
+    desc = re.sub(r"\s+[$€£]?-?\d{1,3}(?:,\d{3})*\.\d{2}$", "", desc).strip()
     return desc

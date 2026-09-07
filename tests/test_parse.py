@@ -79,3 +79,43 @@ def test_ignores_dated_summary_rows():
 def test_amount_line_without_date_is_ignored():
     assert parse_transactions("$6,000.00") == []
     assert parse_transactions("Available Pay Over Time Limit $5,239.36") == []
+
+
+# --- American Express Gold Card format ---------------------------------------
+
+def test_amex_charge_with_lozenge_marker():
+    # Charges end with a "⧫" (Pay Over Time) marker that must not defeat the
+    # amount match.
+    text = "07/18/26 Paramount+ SAN FRANCISCO CA $13.99⧫"
+    (txn,) = parse_transactions(text)
+    assert txn.amount == 13.99
+    assert txn.description == "Paramount+ SAN FRANCISCO CA"
+
+
+def test_amex_payment_minus_before_currency_is_credit():
+    # "-$8.70": minus precedes the currency symbol, and a posting-date "*"
+    # follows the date.
+    text = "07/16/26* MOBILE PAYMENT - THANK YOU -$8.70"
+    (txn,) = parse_transactions(text)
+    assert txn.amount == -8.70
+    assert txn.description == "MOBILE PAYMENT - THANK YOU"
+
+
+def test_amex_foreign_charge_strips_foreign_amount():
+    # International charge: a comma-decimal foreign amount precedes the USD one.
+    text = "07/14/26 AplPay ENJOY SUSHI AIX EN PROVENCE FR 18,50 $21.21⧫"
+    (txn,) = parse_transactions(text)
+    assert txn.amount == 21.21
+    assert txn.description == "AplPay ENJOY SUSHI AIX EN PROVENCE FR"
+
+
+def test_amex_continuation_lines_are_ignored():
+    # Lines below a charge (city, "European Union", "Euro", category) have no
+    # date and must be dropped.
+    text = """07/14/26 AplPay LOUCAU AIX EN PROVENCE FR 7,60 $8.70⧫
+European Union
+thomas.lacrambe@laddition Euro
+RESTAURANT Euro"""
+    txns = parse_transactions(text)
+    assert len(txns) == 1
+    assert txns[0].amount == 8.70
