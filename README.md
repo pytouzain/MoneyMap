@@ -38,16 +38,47 @@ can be corrected by hand — the UI is the safety net.
 
 ## Run it
 
+Create and activate a virtual environment. The activation command differs by
+platform:
+
+**macOS / Linux / Git Bash / WSL**
+
 ```bash
-python -m venv .venv && source .venv/bin/activate
+python -m venv .venv
+source .venv/bin/activate
+```
+
+**Windows — PowerShell**
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+> If PowerShell blocks the script with "running scripts is disabled on this
+> system", allow it for the current session only:
+> `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`, then run the
+> activation command again.
+
+**Windows — CMD**
+
+```bat
+python -m venv .venv
+.venv\Scripts\activate.bat
+```
+
+Once the environment is active (your prompt shows `(.venv)`), install and run:
+
+```bash
 pip install -r requirements.txt
-
-# optional: enable the AI fallback
-cp .env.example .env   # then put your ANTHROPIC_API_KEY in .env
-export $(grep -v '^#' .env | xargs)   # or use your own env loader
-
 uvicorn app.main:app --reload
 ```
+
+To enable the AI fallback, copy `.env.example` to `.env`, add your
+`ANTHROPIC_API_KEY`, and load it before starting the server:
+
+- **macOS / Linux:** `export $(grep -v '^#' .env | xargs)`
+- **PowerShell:** `Get-Content .env | Where-Object { $_ -notmatch '^#' -and $_ } | ForEach-Object { $p = $_ -split '=', 2; Set-Item -Path "env:$($p[0])" -Value $p[1] }`
 
 Open http://127.0.0.1:8000 and upload a PDF statement.
 
