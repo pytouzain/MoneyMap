@@ -85,11 +85,11 @@ def test_amount_line_without_date_is_ignored():
 
 def test_amex_charge_with_lozenge_marker():
     # Charges end with a "⧫" (Pay Over Time) marker that must not defeat the
-    # amount match.
+    # amount match. The trailing state code is stripped; the city is kept.
     text = "07/18/26 Paramount+ SAN FRANCISCO CA $13.99⧫"
     (txn,) = parse_transactions(text)
     assert txn.amount == 13.99
-    assert txn.description == "Paramount+ SAN FRANCISCO CA"
+    assert txn.description == "Paramount+ SAN FRANCISCO"
 
 
 def test_amex_payment_minus_before_currency_is_credit():
@@ -103,10 +103,37 @@ def test_amex_payment_minus_before_currency_is_credit():
 
 def test_amex_foreign_charge_strips_foreign_amount():
     # International charge: a comma-decimal foreign amount precedes the USD one.
+    # The wallet prefix and trailing country code are also removed.
     text = "07/14/26 AplPay ENJOY SUSHI AIX EN PROVENCE FR 18,50 $21.21⧫"
     (txn,) = parse_transactions(text)
     assert txn.amount == 21.21
-    assert txn.description == "AplPay ENJOY SUSHI AIX EN PROVENCE FR"
+    assert txn.description == "ENJOY SUSHI AIX EN PROVENCE"
+
+
+def test_description_tidyup_strips_phone_url_and_location():
+    cases = {
+        "07/19/26 SPECTRUM 855-707-7328 MO $74.99⧫": "SPECTRUM",
+        "07/27/26 Amazon Prime Amazon.com WA $16.45⧫": "Amazon Prime",
+        "08/11/26 GOOGLE *YOUTUBEPREMIUM G.CO/HELPPAY# CA $15.99⧫": "GOOGLE *YOUTUBEPREMIUM",
+        "08/02/26 PAYPAL *SNCFVOYAGEU 0646234299 FR 44,75 $51.62⧫": "PAYPAL *SNCFVOYAGEU",
+    }
+    for line, expected in cases.items():
+        (txn,) = parse_transactions(line)
+        assert txn.description == expected, f"{line!r} -> {txn.description!r}"
+
+
+def test_tidyup_never_empties_description():
+    # If cleanup would remove everything, the name is preserved.
+    (txn,) = parse_transactions("07/27/26 AMAZON.COM WA $16.45")
+    assert txn.description  # non-empty
+    assert "AMAZON" in txn.description.upper()
+
+
+def test_tidyup_keeps_merchant_that_is_a_domain():
+    # The first token is the merchant even when it is a domain like SEATS.AERO;
+    # it must not be dropped as URL noise.
+    (txn,) = parse_transactions("07/31/26 SEATS.AERO WILMINGTON DE $9.99⧫")
+    assert "SEATS.AERO" in txn.description
 
 
 def test_amex_continuation_lines_are_ignored():

@@ -49,6 +49,47 @@ def _is_summary_label(description: str) -> bool:
     text = description.lower()
     return any(label in text for label in _SUMMARY_LABELS)
 
+
+# Leading wallet/payment-method prefixes to drop from a merchant name.
+_PAYMENT_PREFIXES = {
+    "aplpay", "applepay", "gglpay", "gpay", "googlepay",
+    "tapandpay", "contactless",
+}
+
+# Trailing 2-letter location codes (US states + common country codes) that
+# statements append after the city. Only stripped when it is the final token.
+_LOCATION_CODES = {
+    # US states + DC / PR
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID",
+    "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS",
+    "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK",
+    "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV",
+    "WI", "WY", "DC", "PR",
+    # common country codes
+    "US", "UK", "GB", "MX", "FR", "DE", "ES", "IT", "NL", "BE", "CH", "AT",
+    "PT", "IE", "SE", "NO", "DK", "FI", "PL", "CZ", "GR", "HU", "RO", "LU",
+    "JP", "CN", "KR", "SG", "HK", "AE", "AU", "NZ", "BR", "AR", "CL", "ZA",
+    "IL", "TR", "TH", "VN", "PH", "MY",
+}
+
+
+def _is_noise_token(token: str) -> bool:
+    """True for a token that is a phone number or a URL/domain, not a name."""
+    if re.fullmatch(r"\+?\d[\d\-().]{5,}\d", token):  # phone number
+        return True
+    if "/" in token or token.endswith("#"):  # url path / help code
+        return True
+    if re.search(r"\.[A-Za-z]{2,}", token):  # domain (amazon.com, g.co)
+        return True
+    return False
+
+
+def _is_word(token: str) -> bool:
+    """A substantive name token: has letters and is not a location code."""
+    if token.strip(".,").upper() in _LOCATION_CODES:
+        return False
+    return bool(re.search(r"[A-Za-z]{2,}", token))
+
 # --- date patterns -----------------------------------------------------------
 # Matched at the START of a (stripped) line.
 _MONTHS = (
@@ -171,8 +212,11 @@ def parse_transactions(text: str) -> list[Transaction]:
 
 
 def _clean_description(desc: str) -> str:
-    """Tidy a raw description: collapse whitespace and strip noise that some
-    statements leave around the merchant name."""
+    """Tidy a raw description into a readable merchant name.
+
+    Removes wallet prefixes, phone numbers, URLs, foreign-currency amounts,
+    and a trailing state/country code, while never erasing the whole name.
+    """
     desc = re.sub(r"\s+", " ", desc).strip()
     # Leading posting-date asterisk / decoration (e.g. "07/16/26*  MERCHANT").
     desc = re.sub(r"^[*⧫◆✦♦●•·\s]+", "", desc)
@@ -181,4 +225,25 @@ def _clean_description(desc: str) -> str:
     desc = re.sub(r"\s+\d{1,3}(?:[.\s]\d{3})*,\d{2}$", "", desc).strip()
     # A running-balance figure some statements append after the amount.
     desc = re.sub(r"\s+[$€£]?-?\d{1,3}(?:,\d{3})*\.\d{2}$", "", desc).strip()
-    return desc
+
+    tokens = desc.split()
+    # Drop a leading wallet prefix (Apple Pay, Google Pay, ...).
+    if tokens and tokens[0].lower() in _PAYMENT_PREFIXES:
+        tokens = tokens[1:]
+
+    # Drop phone/URL noise tokens, but never the first token: the merchant name
+    # leads the line and can itself be a domain (e.g. "SEATS.AERO"). If the
+    # result still has no real word, fall back to the original tokens.
+    if tokens:
+        kept = [tokens[0]] + [t for t in tokens[1:] if not _is_noise_token(t)]
+    else:
+        kept = tokens
+    if not any(_is_word(t) for t in kept):
+        kept = tokens
+
+    # Strip a single trailing state/country code (keeping at least one token).
+    if len(kept) > 1 and kept[-1].strip(".,").upper() in _LOCATION_CODES:
+        kept.pop()
+
+    result = " ".join(kept).strip()
+    return result or desc
