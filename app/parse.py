@@ -19,6 +19,36 @@ import re
 
 from .models import Transaction
 
+# Lines that begin with a date but are NOT spending — statement summary rows,
+# balances, limits, payment info. Matched case-insensitively against the
+# description. Kept deliberately specific so real merchants (e.g. "TOTAL WINE")
+# are not caught.
+_SUMMARY_LABELS = (
+    "previous balance",
+    "new balance",
+    "statement balance",
+    "balance carried",
+    "minimum payment",
+    "payment due",
+    "amount due",
+    "credit limit",
+    "available credit",
+    "cash advance limit",
+    "available cash",
+    "pay over time limit",
+    "available pay over time",
+    "total available",
+    "closing date",
+    "opening balance",
+    "closing balance",
+    "account summary",
+)
+
+
+def _is_summary_label(description: str) -> bool:
+    text = description.lower()
+    return any(label in text for label in _SUMMARY_LABELS)
+
 # --- date patterns -----------------------------------------------------------
 # Matched at the START of a (stripped) line.
 _MONTHS = (
@@ -102,22 +132,27 @@ def parse_transactions(text: str) -> list[Transaction]:
 
         date, rest = _find_date(line)
 
+        # A real transaction line begins with a date. Requiring one is the
+        # single most effective filter: it drops account-summary rows,
+        # balances, and credit limits (e.g. "Pay Over Time Limit $6,000.00")
+        # that carry an amount but no date.
+        if date is None:
+            continue
+
         parsed = _parse_amount(rest)
         if parsed is None:
             continue
-        amount, description, has_cents = parsed
-
-        # Reject non-transaction noise: a real transaction line has either a
-        # recognizable date or an amount with explicit cents (usually both).
-        # This filters out lines like "Account Number: 1234" or "Page 1 of 3".
-        if date is None and not has_cents:
-            continue
+        amount, description, _ = parsed
 
         description = _clean_description(description)
         if not description:
             continue
         # A line that's only a date + amount with no description is suspicious.
         if len(description) < 2:
+            continue
+
+        # Some summary rows (payment due, balances) do carry a date; drop them.
+        if _is_summary_label(description):
             continue
 
         transactions.append(

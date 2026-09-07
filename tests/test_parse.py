@@ -45,3 +45,37 @@ def test_ignores_non_transaction_lines():
     Page 1 of 3
     """
     assert parse_transactions(text) == []
+
+
+def test_ignores_summary_amounts_without_dates():
+    # The Amex-style account-summary box: labels and amounts with no dates.
+    text = """
+    Pay Over Time Limit
+    Available Pay Over Time Limit
+    $6,000.00
+    $5,239.36
+    01/12/2024  STARBUCKS STORE 123  6.45
+    """
+    txns = parse_transactions(text)
+    assert len(txns) == 1
+    assert "STARBUCKS" in txns[0].description
+    assert txns[0].amount == 6.45
+
+
+def test_ignores_dated_summary_rows():
+    # Some summary rows do carry a date; they must still be dropped.
+    text = """
+    01/15/2024  Previous Balance            1,234.56
+    01/15/2024  Minimum Payment Due           35.00
+    01/16/2024  WHOLE FOODS MARKET            54.20
+    """
+    txns = parse_transactions(text)
+    descs = [t.description for t in txns]
+    assert descs == ["WHOLE FOODS MARKET"] or (
+        len(txns) == 1 and "WHOLE FOODS" in txns[0].description
+    )
+
+
+def test_amount_line_without_date_is_ignored():
+    assert parse_transactions("$6,000.00") == []
+    assert parse_transactions("Available Pay Over Time Limit $5,239.36") == []
